@@ -1,0 +1,49 @@
+name: Daily Briefing Bot
+
+on:
+  # 自动调度
+  schedule:
+    # UTC 21:15
+    # 冬令时 (Nov-Mar): 美东 16:15 (闭市后 15m) -> 完美
+    # 夏令时 (Mar-Nov): 美东 17:15 (闭市后 1h15m) -> 安全
+    # 每天运行 (包含周末，因为你需要天气日报)
+    - cron: '15 21 * * *'
+    
+  # 允许手动在 GitHub 网页点击按钮触发 (方便调试)
+  workflow_dispatch:
+
+jobs:
+  run-daily-bot:
+    runs-on: ubuntu-latest
+    
+    # 设置超时防止卡死，5分钟足矣
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip' # 开启缓存加速依赖安装
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Daily Briefing Script
+        # 将 GitHub Secrets 注入为环境变量
+        env:
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+          # 隐私位置信息
+          LATITUDE: ${{ secrets.LATITUDE }}
+          LONGITUDE: ${{ secrets.LONGITUDE }}
+          LOCATION_NAME: ${{ secrets.LOCATION_NAME }}
+        run: python -m src.main
