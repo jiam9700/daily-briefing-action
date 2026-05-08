@@ -15,7 +15,11 @@ on:
 jobs:
   run-daily-bot:
     runs-on: ubuntu-latest
-    
+
+    # 允许 keep-alive 步骤推送空提交，重置 GitHub 60 天闲置定时器
+    permissions:
+      contents: write
+
     # 设置超时防止卡死，5分钟足矣
     timeout-minutes: 5
 
@@ -47,3 +51,19 @@ jobs:
           LONGITUDE: ${{ secrets.LONGITUDE }}
           LOCATION_NAME: ${{ secrets.LOCATION_NAME }}
         run: python -m src.main
+
+      # 防止 GitHub 因 60 天无活动自动禁用定时工作流。
+      # 仅在最近一次提交超过 50 天时推送一个空 commit (低于 60 天阈值, 留有缓冲)。
+      - name: Keep workflow alive
+        if: github.event_name == 'schedule'
+        run: |
+          LAST_COMMIT_TS=$(git log -1 --format=%ct)
+          NOW=$(date +%s)
+          DAYS=$(( (NOW - LAST_COMMIT_TS) / 86400 ))
+          echo "Last commit was $DAYS days ago."
+          if [ "$DAYS" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keep workflow alive"
+            git push
+          fi
